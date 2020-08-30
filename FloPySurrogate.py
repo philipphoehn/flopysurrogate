@@ -34,10 +34,11 @@ surrogateSettings = {
     'NROW': 100,
     'NCOL': 100,
     'SURROGATENAME': 'surrogateEnv3_classTest',
-    'COMPILEDATASET': True,
-    'TRAIN': True,
+    'GENERATEDATA': True,
+    'COMPILEDATASET': False,
+    'TRAIN': False,
     'CONTINUETRAIN': False,
-    'TEST': True,
+    'TEST': False,
     'NMODELTRAINS': 1,
     'MAXSAMPLES': 2000,
     'BATCHSIZE': 128,
@@ -83,6 +84,32 @@ class FloPyEnvSurrogate():
         self.PATIENCE = surrogateSettings['PATIENCE']
         self.NRANDOMMODELS = surrogateSettings['NMODELTRAINS']
     
+    def generateData(self):
+        '''
+        Generate simulation data.
+        '''
+        
+        filesGames = glob(join(self.wrkspc, 'dev', 'gameDataNewInitialsOnly', 'env3*.p'))
+        X, Y, i = [], [], 1
+        print('Compiling dataset ...')
+        for data in (filesGames if self.MAXSAMPLES is None else filesGames[:self.MAXSAMPLES]):
+            filehandler = open(data, 'rb')
+            data = load(filehandler)
+            filehandler.close()
+            stress, state = self.extractDatasetFullHeadField(data)
+            X.append(stress)
+            Y.append(state)
+            i += 1
+
+        X, Y = asarray(X), asarray(Y)
+        self.nInput, self.nPredictions = len(X[0]), len(Y[0])
+        save(join(self.wrkspcDev, 'surrogateInitialXtrain_'), X)
+        save(join(self.wrkspcDev, 'surrogateInitialYtrain_'), Y)
+        save(join(self.wrkspcDev, 'surrogateInitialXval_'), X)
+        save(join(self.wrkspcDev, 'surrogateInitialYval_'), Y)
+        save(join(self.wrkspcDev, 'surrogateInitialXtest_'), X)
+        save(join(self.wrkspcDev, 'surrogateInitialYtest_'), Y)
+
     def compileDataset(self):
         '''
         Assemble datasets. Choose between training, validation and testing.
@@ -134,6 +161,17 @@ class FloPyEnvSurrogate():
         ''' Extract specific dataset describing head field around well. '''
         # wellX, wellY = stress[-4], stress[-3]
         pass
+
+    def unnormalize(data, env):
+        from numpy import multiply
+
+        data['particleCoords'] = multiply(data['particleCoords'],
+            env.minX + env.extentX)
+        data['heads'] = multiply(data['heads'],
+            env.maxH)
+        data['wellQ'] = multiply(data['wellQ'], env.minQ)
+        data['wellCoords'] = multiply(data['wellCoords'], env.minX + env.extentX)
+        return data
 
     def unnormalizeInitial(self, data, env):
         ''' Remove data normalization. '''
@@ -358,6 +396,8 @@ class FloPyEnvSurrogate():
 
 def main(surrogateSettings):
     surrogate = FloPyEnvSurrogate(surrogateSettings)
+    if surrogateSettings['GENERATEDATA']:
+        surrogate.generateData()
     if surrogateSettings['COMPILEDATASET']:
         surrogate.compileDataset()
     if surrogateSettings['TRAIN']:

@@ -1,0 +1,4 @@
+dev/
+__pycache__/
+temp/
+.git/
